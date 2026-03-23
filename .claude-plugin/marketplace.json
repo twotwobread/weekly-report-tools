@@ -1,0 +1,11 @@
+{
+  "name": "twotwobread",
+  "plugins": [
+    {
+      "name": "weekly-report-tools",
+      "description": "Weekly report generation skills: fetch GitLab activity and create Google Doc draft (weekly-task), then generate .pptx and upload to Google Drive (weekly-report)",
+      "category": "productivity",
+      "source": "./"
+    }
+  ]
+}
