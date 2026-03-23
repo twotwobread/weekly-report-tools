@@ -95,10 +95,12 @@ NuFi: RNGD 발표 준비 (진행중)
 
 ## Step 4 — Generate draft markdown
 
-Assemble the draft using this exact template for each user, in the order they were provided as arguments:
+Assemble the draft using this exact template for each user, in the order they were provided as arguments.
+
+Use the **username** (the argument without `@`) as `{name}` — do NOT look up the GitLab display name.
 
 ```markdown
-## {name} | Developer
+## {username} | Developer
 
 ### Done
 {grouped task entries from Step 3}
