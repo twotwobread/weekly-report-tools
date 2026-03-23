@@ -1,8 +1,15 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "google-api-python-client",
+#   "google-auth",
+# ]
+# ///
 """Upload a .pptx file to Google Drive (supports Shared Drives).
 
 Usage:
-  python3 upload_to_drive.py --file report.pptx --title "Weekly Report 2026-W12" --folder-id FOLDER_ID
+  uv run upload_to_drive.py --file report.pptx --title "Weekly Report 2026-W12" --folder-id FOLDER_ID
 """
 
 import argparse

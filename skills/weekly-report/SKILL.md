@@ -10,7 +10,8 @@ Generates a weekly report `.pptx` from a completed draft Google Doc created by `
 
 - Google API configured: see `../weekly-task/google-api-setup.md`
 - Environment variables set: `GOOGLE_APPLICATION_CREDENTIALS`, `WEEKLY_REPORT_FOLDER_ID`
-- Python dependency: `pip install google-api-python-client google-auth`
+  - If these are missing, run `source ~/.zshrc` first, then verify with `echo $GOOGLE_APPLICATION_CREDENTIALS`
+- Python dependencies are managed automatically via `uv` (no manual install needed)
 - Node.js dependency: `npm install -g pptxgenjs`
 
 ## Arguments
@@ -25,7 +26,7 @@ Example: /weekly-report https://docs.google.com/document/d/1BxiMVs0XRA5...
 Run (substituting the skill's base directory for `{SKILL_DIR}`):
 
 ```bash
-python3 {SKILL_DIR}/helpers/google_docs.py read \
+uv run {SKILL_DIR}/helpers/google_docs.py read \
   --url "$ARGUMENTS"
 ```
 
@@ -124,7 +125,7 @@ Failed to generate .pptx — check Node.js and pptxgenjs installation.
 ## Step 4 — Upload to Google Drive
 
 ```bash
-python3 {SKILL_DIR}/helpers/upload_to_drive.py \
+uv run {SKILL_DIR}/helpers/upload_to_drive.py \
   --file /tmp/weekly-report-{week}.pptx \
   --title "Weekly Report {week}" \
   --folder-id $WEEKLY_REPORT_FOLDER_ID

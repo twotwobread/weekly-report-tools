@@ -11,7 +11,8 @@ Generates a weekly task draft Google Doc by fetching GitLab activity per user an
 - `glab` CLI authenticated to the project
 - Google API configured: see `google-api-setup.md` (same directory as this skill)
 - Environment variables set: `GOOGLE_APPLICATION_CREDENTIALS`, `WEEKLY_REPORT_FOLDER_ID`
-- Python dependency: `pip install google-api-python-client google-auth`
+  - If these are missing, run `source ~/.zshrc` first, then verify with `echo $GOOGLE_APPLICATION_CREDENTIALS`
+- Python dependencies are managed automatically via `uv` (no manual install needed)
 
 > **Known limitation:** GitLab API queries are capped at 100 results per request. Weeks with > 100 MRs or issues per user will be silently truncated.
 
@@ -119,7 +120,7 @@ Assemble the draft using this exact template for each user, in the order they we
 Write the assembled markdown to `/tmp/weekly-report-draft-{YYYY-WXX}.md`, then run (substituting the skill's base directory for `{SKILL_DIR}`):
 
 ```bash
-python3 {SKILL_DIR}/helpers/google_docs.py create \
+uv run {SKILL_DIR}/helpers/google_docs.py create \
   --title "Weekly Report {YYYY-WXX} Draft" \
   --content /tmp/weekly-report-draft-{YYYY-WXX}.md \
   --folder-id $WEEKLY_REPORT_FOLDER_ID

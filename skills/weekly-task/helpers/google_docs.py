@@ -1,9 +1,16 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "google-api-python-client",
+#   "google-auth",
+# ]
+# ///
 """Shared Google Docs helper for weekly-task and weekly-report skills.
 
 Usage:
-  python3 google_docs.py create --title "Title" --content draft.md --folder-id FOLDER_ID
-  python3 google_docs.py read --url https://docs.google.com/document/d/...
+  uv run google_docs.py create --title "Title" --content draft.md --folder-id FOLDER_ID
+  uv run google_docs.py read --url https://docs.google.com/document/d/...
 """
 
 import argparse
