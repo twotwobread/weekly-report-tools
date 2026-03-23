@@ -1,11 +1,21 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "twotwobread",
+  "description": "Personal productivity skills for NuFi team weekly reporting",
+  "owner": {
+    "name": "sylee"
+  },
   "plugins": [
     {
       "name": "weekly-report-tools",
       "description": "Weekly report generation skills: fetch GitLab activity and create Google Doc draft (weekly-task), then generate .pptx and upload to Google Drive (weekly-report)",
       "category": "productivity",
-      "source": "./"
+      "source": {
+        "source": "url",
+        "url": "https://github.com/twotwobread/weekly-report-tools.git",
+        "sha": "a2c320152d0ee44bb386e004fd1051b4c12ad0d3"
+      },
+      "homepage": "https://github.com/twotwobread/weekly-report-tools"
     }
   ]
 }
