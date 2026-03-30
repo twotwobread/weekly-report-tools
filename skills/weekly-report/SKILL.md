@@ -23,10 +23,10 @@ Example: /weekly-report https://docs.google.com/document/d/1BxiMVs0XRA5...
 
 ## Step 1 — Read the Google Doc
 
-Run (substituting the skill's base directory for `{SKILL_DIR}`):
+Run:
 
 ```bash
-uv run {SKILL_DIR}/helpers/google_docs.py read \
+uv run ${CLAUDE_SKILL_DIR}/helpers/google_docs.py read \
   --url "$ARGUMENTS"
 ```
 
@@ -111,10 +111,10 @@ Write the result to `/tmp/slides-{week}.json`.
 
 ## Step 3 — Generate .pptx
 
-Extract the week label from the JSON (field `week`). Run (substituting the skill's base directory for `{SKILL_DIR}`):
+Extract the week label from the JSON (field `week`). Run:
 
 ```bash
-node {SKILL_DIR}/helpers/generate_slides.js \
+node ${CLAUDE_SKILL_DIR}/helpers/generate_slides.js \
   --data /tmp/slides-{week}.json \
   --output /tmp/weekly-report-{week}.pptx
 ```
@@ -127,7 +127,7 @@ Failed to generate .pptx — check Node.js and pptxgenjs installation.
 ## Step 4 — Upload to Google Drive
 
 ```bash
-uv run {SKILL_DIR}/helpers/upload_to_drive.py \
+uv run ${CLAUDE_SKILL_DIR}/helpers/upload_to_drive.py \
   --file /tmp/weekly-report-{week}.pptx \
   --title "Weekly Report {week}" \
   --folder-id $WEEKLY_REPORT_FOLDER_ID

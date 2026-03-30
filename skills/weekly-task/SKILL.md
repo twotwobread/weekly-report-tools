@@ -119,10 +119,10 @@ Use the **username** (the argument without `@`) as `{name}` — do NOT look up t
 
 ## Step 5 — Write draft to a temp file and create Google Doc
 
-Write the assembled markdown to `/tmp/weekly-report-draft-{YYYY-WXX}.md`, then run (substituting the skill's base directory for `{SKILL_DIR}`):
+Write the assembled markdown to `/tmp/weekly-report-draft-{YYYY-WXX}.md`, then run:
 
 ```bash
-uv run {SKILL_DIR}/helpers/google_docs.py create \
+uv run ${CLAUDE_SKILL_DIR}/helpers/google_docs.py create \
   --title "Weekly Report {YYYY-WXX} Draft" \
   --content /tmp/weekly-report-draft-{YYYY-WXX}.md \
   --folder-id $WEEKLY_REPORT_FOLDER_ID
