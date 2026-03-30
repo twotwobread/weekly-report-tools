@@ -364,34 +364,81 @@ function addOutputSummarySlide(member) {
 
   const links = member.output_summary || [];
 
+  // Layout constants for image cards
+  const TEXT_ROW_H = 0.55;  // height of title+url row when images are present
+  const IMG_H      = 1.7;   // height of image row
+  const IMG_GAP    = 0.08;  // horizontal gap between images
+  const IMG_TOP    = 0.08;  // gap between text row and image row
+  const CARD_PAD   = 0.1;   // bottom padding inside card
+
   // Link cards
   let cardY = 1.55;
   links.forEach((link) => {
+    const imgPaths = (link.image_paths || []).filter(Boolean);
+    const hasImages = imgPaths.length > 0;
+    const cardH = hasImages
+      ? TEXT_ROW_H + IMG_TOP + IMG_H + CARD_PAD
+      : 0.65;
+
+    // Card background
     slide.addShape(pres.shapes.RECTANGLE, {
-      x: 0.5, y: cardY, w: 9, h: 0.65,
+      x: 0.5, y: cardY, w: 9, h: cardH,
       fill: { color: C.white }, line: { color: C.rowAlt, pt: 1 },
     });
     // Left blue stripe
     slide.addShape(pres.shapes.RECTANGLE, {
-      x: 0.5, y: cardY, w: 0.06, h: 0.65,
+      x: 0.5, y: cardY, w: 0.06, h: cardH,
       fill: { color: C.blue }, line: { color: C.blue },
     });
-    // Title
-    slide.addText(link.title || "", {
-      x: 0.75, y: cardY, w: 3.5, h: 0.65,
-      fontFace: FONT_B, fontSize: 13, color: C.dark,
-      bold: true, valign: "middle",
-    });
-    // URL
-    if (link.url) {
-      slide.addText(link.url, {
-        x: 4.3, y: cardY, w: 5.0, h: 0.65,
-        fontFace: FONT_B, fontSize: 9, color: C.blue,
-        hyperlink: { url: link.url },
-        valign: "middle",
+
+    if (hasImages) {
+      // Title — top-aligned in text row
+      slide.addText(link.title || "", {
+        x: 0.75, y: cardY + 0.06, w: 5.5, h: TEXT_ROW_H,
+        fontFace: FONT_B, fontSize: 13, color: C.dark,
+        bold: true, valign: "top",
       });
+      // URL — right-aligned in text row
+      if (link.url) {
+        slide.addText(link.url, {
+          x: 6.3, y: cardY + 0.06, w: 3.0, h: TEXT_ROW_H,
+          fontFace: FONT_B, fontSize: 9, color: C.blue,
+          hyperlink: { url: link.url },
+          valign: "top", align: "right",
+        });
+      }
+      // Images — laid out side by side below the text row
+      const imgY = cardY + TEXT_ROW_H + IMG_TOP;
+      const n = imgPaths.length;
+      const contentW = 8.5;  // 9 - 0.65 (after stripe) - 0.15 (right margin)
+      const imgW = (contentW - (n - 1) * IMG_GAP) / n;
+      imgPaths.forEach((imgPath, idx) => {
+        slide.addImage({
+          path: imgPath,
+          x: 0.65 + idx * (imgW + IMG_GAP),
+          y: imgY,
+          w: imgW,
+          h: IMG_H,
+        });
+      });
+    } else {
+      // Original layout: title + url centered vertically
+      slide.addText(link.title || "", {
+        x: 0.75, y: cardY, w: 3.5, h: 0.65,
+        fontFace: FONT_B, fontSize: 13, color: C.dark,
+        bold: true, valign: "middle",
+      });
+      if (link.url) {
+        slide.addText(link.url, {
+          x: 4.3, y: cardY, w: 5.0, h: 0.65,
+          fontFace: FONT_B, fontSize: 9, color: C.blue,
+          hyperlink: { url: link.url },
+          valign: "middle",
+        });
+      }
     }
-    cardY += 0.85;
+
+    cardY += cardH + 0.2;
   });
 
   // Issues section

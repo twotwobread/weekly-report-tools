@@ -62,7 +62,8 @@ Analyze the doc content and produce a `/tmp/slides-{week}.json` file following t
       "output_summary": [
         {
           "title": "string — achievement title",
-          "url": "string — link URL, empty string if none"
+          "url": "string — link URL, empty string if none",
+          "image_paths": ["string — /tmp/weekly-doc-img-N.ext paths from [IMAGE:...] markers that immediately follow this entry in the doc; empty array if none"]
         }
       ],
       "this_week": [
@@ -104,6 +105,7 @@ Analyze the doc content and produce a `/tmp/slides-{week}.json` file following t
 - `risks`: include any member with non-empty Issues section OR Blocked status tasks
 - `flags`: include tasks with `est_days > 5`
 - `due_date`: calculate from the date `/weekly-report` is run + `est_days` business days
+- `output_summary[].image_paths`: scan the doc text for `[IMAGE:/tmp/...]` markers that appear on the lines immediately following the entry's description (before the next `-` bullet or section). Collect all such marker paths into the array in order. If no markers follow, use `[]`.
 
 Write the result to `/tmp/slides-{week}.json`.
 
@@ -142,4 +144,4 @@ Upload failed — check GOOGLE_APPLICATION_CREDENTIALS and WEEKLY_REPORT_FOLDER_
 Report created: {Google Drive URL}
 ```
 
-Clean up temp files: `/tmp/slides-{week}.json`, `/tmp/weekly-report-{week}.pptx`, `/tmp/weekly-report-draft-{week}.md` (if present).
+Clean up temp files: `/tmp/slides-{week}.json`, `/tmp/weekly-report-{week}.pptx`, `/tmp/weekly-report-draft-{week}.md` (if present), `/tmp/weekly-doc-img-*.png` and `/tmp/weekly-doc-img-*.jpg` (if present).

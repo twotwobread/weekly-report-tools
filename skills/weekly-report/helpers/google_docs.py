@@ -4,6 +4,7 @@
 # dependencies = [
 #   "google-api-python-client",
 #   "google-auth",
+#   "requests",
 # ]
 # ///
 """Shared Google Docs helper for weekly-task and weekly-report skills.
@@ -83,15 +84,52 @@ def cmd_create(title: str, content_path: str, folder_id: str) -> str:
 
 
 def cmd_read(url: str) -> str:
-    """Read a Google Doc and return its plain text content."""
+    """Read a Google Doc and return plain text with [IMAGE:/tmp/...] markers for inline images."""
     doc_id = extract_doc_id(url)
     docs_service, _ = _get_services()
     doc = docs_service.documents().get(documentId=doc_id).execute()
 
+    # Download inline images to /tmp/ and build object_id -> local path map
+    inline_objects = doc.get("inlineObjects", {})
+    img_paths: dict[str, str] = {}
+    if inline_objects:
+        try:
+            from google.auth.transport.requests import AuthorizedSession
+            session = AuthorizedSession(_get_credentials())
+            for i, (obj_id, obj) in enumerate(inline_objects.items()):
+                embedded = (
+                    obj.get("inlineObjectProperties", {})
+                    .get("embeddedObject", {})
+                )
+                img_props = embedded.get("imageProperties", {})
+                content_uri = img_props.get("contentUri") or img_props.get("sourceUri", "")
+                if not content_uri:
+                    continue
+                resp = session.get(content_uri, timeout=30)
+                if resp.status_code == 200:
+                    ctype = resp.headers.get("content-type", "image/png")
+                    ext = ctype.split("/")[-1].split(";")[0].strip() or "png"
+                    if ext == "jpeg":
+                        ext = "jpg"
+                    path = f"/tmp/weekly-doc-img-{i}.{ext}"
+                    with open(path, "wb") as f:
+                        f.write(resp.content)
+                    img_paths[obj_id] = path
+        except Exception as e:
+            print(f"Warning: could not download inline images: {e}", file=sys.stderr)
+
+    # Extract text with [IMAGE:path] markers at inline image positions
     text_parts = []
     for elem in doc.get("body", {}).get("content", []):
         for para_elem in elem.get("paragraph", {}).get("elements", []):
-            text_parts.append(para_elem.get("textRun", {}).get("content", ""))
+            text_run = para_elem.get("textRun", {}).get("content", "")
+            if text_run:
+                text_parts.append(text_run)
+            inline_obj = para_elem.get("inlineObjectElement", {})
+            if inline_obj:
+                obj_id = inline_obj.get("inlineObjectId", "")
+                if obj_id in img_paths:
+                    text_parts.append(f"[IMAGE:{img_paths[obj_id]}]")
     return "".join(text_parts)
 
 
