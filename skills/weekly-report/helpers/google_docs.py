@@ -4,6 +4,7 @@
 # dependencies = [
 #   "google-api-python-client",
 #   "google-auth",
+#   "google-auth-httplib2",
 #   "requests",
 # ]
 # ///
@@ -15,9 +16,13 @@ Usage:
 """
 
 import argparse
+import base64
+import json
 import os
 import sys
 
+import requests as http_requests
+import google.auth.transport.requests
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
@@ -84,53 +89,70 @@ def cmd_create(title: str, content_path: str, folder_id: str) -> str:
 
 
 def cmd_read(url: str) -> str:
-    """Read a Google Doc and return plain text with [IMAGE:/tmp/...] markers for inline images."""
+    """Read a Google Doc and return its content.
+
+    If the document contains inline images, returns JSON:
+      { "text": "...content with [IMAGE:img_0] markers...", "images": { "img_0": { "base64": "...", "mime_type": "..." } } }
+    Otherwise returns plain text.
+    """
     doc_id = extract_doc_id(url)
-    docs_service, _ = _get_services()
+    creds = _get_credentials()
+    docs_service = build("docs", "v1", credentials=creds)
     doc = docs_service.documents().get(documentId=doc_id).execute()
 
-    # Download inline images to /tmp/ and build object_id -> local path map
+    # ── Extract inline images ────────────────────────────────────────────
     inline_objects = doc.get("inlineObjects", {})
-    img_paths: dict[str, str] = {}
+    images: dict = {}
+    inline_object_map: dict = {}  # inlineObjectId -> img key
+
     if inline_objects:
-        try:
-            from google.auth.transport.requests import AuthorizedSession
-            session = AuthorizedSession(_get_credentials())
-            for i, (obj_id, obj) in enumerate(inline_objects.items()):
-                embedded = (
+        auth_session = google.auth.transport.requests.Request()
+        creds.refresh(auth_session)
+        for obj_id, obj in inline_objects.items():
+            try:
+                content_uri = (
                     obj.get("inlineObjectProperties", {})
                     .get("embeddedObject", {})
+                    .get("imageProperties", {})
+                    .get("contentUri", "")
                 )
-                img_props = embedded.get("imageProperties", {})
-                content_uri = img_props.get("contentUri") or img_props.get("sourceUri", "")
                 if not content_uri:
                     continue
-                resp = session.get(content_uri, timeout=30)
+                resp = http_requests.get(
+                    content_uri,
+                    headers={"Authorization": f"Bearer {creds.token}"},
+                    timeout=15,
+                )
                 if resp.status_code == 200:
-                    ctype = resp.headers.get("content-type", "image/png")
-                    ext = ctype.split("/")[-1].split(";")[0].strip() or "png"
-                    if ext == "jpeg":
-                        ext = "jpg"
-                    path = f"/tmp/weekly-doc-img-{i}.{ext}"
-                    with open(path, "wb") as f:
-                        f.write(resp.content)
-                    img_paths[obj_id] = path
-        except Exception as e:
-            print(f"Warning: could not download inline images: {e}", file=sys.stderr)
+                    img_key = f"img_{len(images)}"
+                    mime_type = resp.headers.get("content-type", "image/png").split(";")[0].strip()
+                    images[img_key] = {
+                        "base64": base64.b64encode(resp.content).decode(),
+                        "mime_type": mime_type,
+                    }
+                    inline_object_map[obj_id] = img_key
+            except Exception:
+                pass
 
-    # Extract text with [IMAGE:path] markers at inline image positions
+    # ── Build text with [IMAGE:imgN] markers ────────────────────────────
     text_parts = []
     for elem in doc.get("body", {}).get("content", []):
         for para_elem in elem.get("paragraph", {}).get("elements", []):
-            text_run = para_elem.get("textRun", {}).get("content", "")
+            text_run = para_elem.get("textRun", {})
             if text_run:
-                text_parts.append(text_run)
-            inline_obj = para_elem.get("inlineObjectElement", {})
-            if inline_obj:
-                obj_id = inline_obj.get("inlineObjectId", "")
-                if obj_id in img_paths:
-                    text_parts.append(f"[IMAGE:{img_paths[obj_id]}]")
-    return "".join(text_parts)
+                text_parts.append(text_run.get("content", ""))
+            inline_obj_elem = para_elem.get("inlineObjectElement", {})
+            if inline_obj_elem:
+                obj_id = inline_obj_elem.get("inlineObjectId", "")
+                img_key = inline_object_map.get(obj_id)
+                if img_key:
+                    text_parts.append(f"\n[IMAGE:{img_key}]\n")
+
+    text = "".join(text_parts)
+
+    if images:
+        return json.dumps({"text": text, "images": images}, ensure_ascii=False)
+    return text
 
 
 def main():

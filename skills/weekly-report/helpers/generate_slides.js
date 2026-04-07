@@ -83,8 +83,49 @@ function weekToDateRange(weekStr) {
 
 const members = data.members || [];
 const dateRange = weekToDateRange(data.week);
-// Cover + Exec Summary + 3 slides/member + Team Analysis
-const TOTAL_SLIDES = 2 + members.length * 3 + 1;
+
+// ── Image dimension helpers ──────────────────────────────────────────
+function getPNGDimensions(base64Data) {
+  const buf = Buffer.from(base64Data, "base64");
+  // PNG: 8-byte signature + IHDR chunk (4 len, 4 type, 4 width, 4 height)
+  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+}
+
+function getJPEGDimensions(base64Data) {
+  const buf = Buffer.from(base64Data, "base64");
+  let i = 2; // skip SOI (FF D8)
+  while (i + 3 < buf.length) {
+    if (buf[i] !== 0xFF) break;
+    const marker = buf[i + 1];
+    const segLen = buf.readUInt16BE(i + 2);
+    if (marker >= 0xC0 && marker <= 0xC3) {
+      return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) };
+    }
+    i += 2 + segLen;
+  }
+  return null;
+}
+
+function getImageDimensions(base64Data, mimeType) {
+  try {
+    if (mimeType === "image/png") return getPNGDimensions(base64Data);
+    if (mimeType === "image/jpeg" || mimeType === "image/jpg") return getJPEGDimensions(base64Data);
+  } catch (_) {}
+  return null;
+}
+
+// Dynamically compute total slide count
+function computeTotalSlides() {
+  let total = 2; // Cover + Exec Summary
+  for (const m of members) {
+    total += 1; // Last Week
+    total += 1; // Output (text-only) + Issues
+    total += (m.output_summary || []).filter((l) => !!l.image_data).length;
+    total += 1; // This Week
+  }
+  return total + 1; // Team Analysis
+}
+const TOTAL_SLIDES = computeTotalSlides();
 
 function addFooter(slide, slideNum) {
   slide.addText(
@@ -353,7 +394,7 @@ function addLastWeekSlide(member) {
   addFooter(slide, slideCount);
 }
 
-// ── Member slide: Output Summary + Issues ────────────────────────────
+// ── Member slide: Output Summary (text-only items) + Issues ─────────
 function addOutputSummarySlide(member) {
   slideCount++;
   const slide = pres.addSlide();
@@ -362,83 +403,36 @@ function addOutputSummarySlide(member) {
   addNavyHeader(slide, member.name, member.role || "Developer");
   addSectionBadge(slide, "주요 산출물");
 
-  const links = member.output_summary || [];
+  // Only text-only items (image items get their own slide)
+  const links = (member.output_summary || []).filter((l) => !l.image_data);
 
-  // Layout constants for image cards
-  const TEXT_ROW_H = 0.55;  // height of title+url row when images are present
-  const IMG_H      = 1.7;   // height of image row
-  const IMG_GAP    = 0.08;  // horizontal gap between images
-  const IMG_TOP    = 0.08;  // gap between text row and image row
-  const CARD_PAD   = 0.1;   // bottom padding inside card
+  const LINK_CARD_H = 0.65;
+  const CARD_GAP    = 0.2;
 
-  // Link cards
   let cardY = 1.55;
   links.forEach((link) => {
-    const imgPaths = (link.image_paths || []).filter(Boolean);
-    const hasImages = imgPaths.length > 0;
-    const cardH = hasImages
-      ? TEXT_ROW_H + IMG_TOP + IMG_H + CARD_PAD
-      : 0.65;
-
-    // Card background
     slide.addShape(pres.shapes.RECTANGLE, {
-      x: 0.5, y: cardY, w: 9, h: cardH,
+      x: 0.5, y: cardY, w: 9, h: LINK_CARD_H,
       fill: { color: C.white }, line: { color: C.rowAlt, pt: 1 },
     });
-    // Left blue stripe
     slide.addShape(pres.shapes.RECTANGLE, {
-      x: 0.5, y: cardY, w: 0.06, h: cardH,
+      x: 0.5, y: cardY, w: 0.06, h: LINK_CARD_H,
       fill: { color: C.blue }, line: { color: C.blue },
     });
-
-    if (hasImages) {
-      // Title — top-aligned in text row
-      slide.addText(link.title || "", {
-        x: 0.75, y: cardY + 0.06, w: 5.5, h: TEXT_ROW_H,
-        fontFace: FONT_B, fontSize: 13, color: C.dark,
-        bold: true, valign: "top",
+    slide.addText(link.title || "", {
+      x: 0.75, y: cardY, w: 3.5, h: LINK_CARD_H,
+      fontFace: FONT_B, fontSize: 13, color: C.dark,
+      bold: true, valign: "middle",
+    });
+    if (link.url) {
+      slide.addText(link.url, {
+        x: 4.3, y: cardY, w: 5.0, h: LINK_CARD_H,
+        fontFace: FONT_B, fontSize: 9, color: C.blue,
+        hyperlink: { url: link.url },
+        valign: "middle",
       });
-      // URL — right-aligned in text row
-      if (link.url) {
-        slide.addText(link.url, {
-          x: 6.3, y: cardY + 0.06, w: 3.0, h: TEXT_ROW_H,
-          fontFace: FONT_B, fontSize: 9, color: C.blue,
-          hyperlink: { url: link.url },
-          valign: "top", align: "right",
-        });
-      }
-      // Images — laid out side by side below the text row
-      const imgY = cardY + TEXT_ROW_H + IMG_TOP;
-      const n = imgPaths.length;
-      const contentW = 8.5;  // 9 - 0.65 (after stripe) - 0.15 (right margin)
-      const imgW = (contentW - (n - 1) * IMG_GAP) / n;
-      imgPaths.forEach((imgPath, idx) => {
-        slide.addImage({
-          path: imgPath,
-          x: 0.65 + idx * (imgW + IMG_GAP),
-          y: imgY,
-          w: imgW,
-          h: IMG_H,
-        });
-      });
-    } else {
-      // Original layout: title + url centered vertically
-      slide.addText(link.title || "", {
-        x: 0.75, y: cardY, w: 3.5, h: 0.65,
-        fontFace: FONT_B, fontSize: 13, color: C.dark,
-        bold: true, valign: "middle",
-      });
-      if (link.url) {
-        slide.addText(link.url, {
-          x: 4.3, y: cardY, w: 5.0, h: 0.65,
-          fontFace: FONT_B, fontSize: 9, color: C.blue,
-          hyperlink: { url: link.url },
-          valign: "middle",
-        });
-      }
     }
-
-    cardY += cardH + 0.2;
+    cardY += LINK_CARD_H + CARD_GAP;
   });
 
   // Issues section
@@ -475,6 +469,59 @@ function addOutputSummarySlide(member) {
       issueBoxY += 0.47;
     });
   }
+
+  addFooter(slide, slideCount);
+}
+
+// ── Member slide: single image (one per image output item) ──────────
+function addImageSlide(member, link) {
+  slideCount++;
+  const slide = pres.addSlide();
+  slide.background = { color: C.white };
+
+  addNavyHeader(slide, member.name, member.role || "Developer");
+
+  // Image title — below the header bar, clearly as a description label
+  slide.addText(link.title || "", {
+    x: 0.5, y: 1.0, w: 9, h: 0.38,
+    fontFace: FONT_B, fontSize: 14, color: C.dark,
+    bold: true, valign: "middle",
+  });
+
+  // Available area for the image (below title, above footer)
+  const AREA_X = 0.5, AREA_Y = 1.45;
+  const AREA_W = 9.0,  AREA_H = 3.6; // inches
+
+  // Compute box size from actual image dimensions to preserve aspect ratio
+  const dims = getImageDimensions(link.image_data, link.image_mime || "image/png");
+  let boxW = AREA_W, boxH = AREA_H;
+  if (dims && dims.width > 0 && dims.height > 0) {
+    const ar = dims.width / dims.height;
+    const areaAr = AREA_W / AREA_H;
+    if (ar > areaAr) {
+      boxW = AREA_W;
+      boxH = AREA_W / ar;
+    } else {
+      boxH = AREA_H;
+      boxW = AREA_H * ar;
+    }
+  }
+
+  // Center the box within the available area
+  const boxX = AREA_X + (AREA_W - boxW) / 2;
+  const boxY = AREA_Y + (AREA_H - boxH) / 2;
+
+  // Outer card frame
+  slide.addShape(pres.shapes.RECTANGLE, {
+    x: boxX, y: boxY, w: boxW, h: boxH,
+    fill: { color: C.white }, line: { color: C.rowAlt, pt: 1 },
+  });
+
+  // Image — no sizing transform needed; box is already proportional
+  slide.addImage({
+    data: `data:${link.image_mime || "image/png"};base64,${link.image_data}`,
+    x: boxX, y: boxY, w: boxW, h: boxH,
+  });
 
   addFooter(slide, slideCount);
 }
@@ -703,6 +750,9 @@ addExecutiveSummarySlide();
 for (const member of members) {
   addLastWeekSlide(member);
   addOutputSummarySlide(member);
+  for (const link of (member.output_summary || []).filter((l) => !!l.image_data)) {
+    addImageSlide(member, link);
+  }
   addThisWeekSlide(member);
 }
 addTeamAnalysisSlide();

@@ -23,10 +23,10 @@ Example: /weekly-report https://docs.google.com/document/d/1BxiMVs0XRA5...
 
 ## Step 1 — Read the Google Doc
 
-Run:
+Run (substituting the skill's base directory for `{SKILL_DIR}`):
 
 ```bash
-uv run ${CLAUDE_SKILL_DIR}/helpers/google_docs.py read \
+uv run {SKILL_DIR}/helpers/google_docs.py read \
   --url "$ARGUMENTS"
 ```
 
@@ -35,7 +35,14 @@ If the command exits non-zero, stop and print:
 Failed to read Google Doc — check permissions and GOOGLE_APPLICATION_CREDENTIALS.
 ```
 
-Store the output as the doc content for the next step.
+The output may be either:
+- **Plain text** (no images in the doc): use as-is for Step 2.
+- **JSON** `{ "text": "...", "images": { "img_0": { "base64": "...", "mime_type": "..." }, ... } }`:
+  - Use `text` as the doc content for Step 2.
+  - Each `[IMAGE:img_N]` marker in `text` indicates where an image appears.
+  - Store the `images` dict to embed into `output_summary` items in Step 2.
+
+Store the parsed text and images for the next step.
 
 ## Step 2 — Parse content and build slides data
 
@@ -63,7 +70,8 @@ Analyze the doc content and produce a `/tmp/slides-{week}.json` file following t
         {
           "title": "string — achievement title",
           "url": "string — link URL, empty string if none",
-          "image_paths": ["string — /tmp/weekly-doc-img-N.ext paths from [IMAGE:...] markers that immediately follow this entry in the doc; empty array if none"]
+          "image_data": "string — base64 image data from images dict, empty string if none",
+          "image_mime": "string — e.g. image/png, empty string if no image"
         }
       ],
       "this_week": [
@@ -105,16 +113,16 @@ Analyze the doc content and produce a `/tmp/slides-{week}.json` file following t
 - `risks`: include any member with non-empty Issues section OR Blocked status tasks
 - `flags`: include tasks with `est_days > 5`
 - `due_date`: calculate from the date `/weekly-report` is run + `est_days` business days
-- `output_summary[].image_paths`: scan the doc text for `[IMAGE:/tmp/...]` markers that appear on the lines immediately following the entry's description (before the next `-` bullet or section). Collect all such marker paths into the array in order. If no markers follow, use `[]`.
+- `output_summary[].image_data`: if an `[IMAGE:img_N]` marker appears directly below a Demos & Links entry title in the doc text, set `image_data` to the corresponding base64 value from `images["img_N"]` and `image_mime` to its `mime_type`. Otherwise leave both as empty string.
 
 Write the result to `/tmp/slides-{week}.json`.
 
 ## Step 3 — Generate .pptx
 
-Extract the week label from the JSON (field `week`). Run:
+Extract the week label from the JSON (field `week`). Run (substituting the skill's base directory for `{SKILL_DIR}`):
 
 ```bash
-node ${CLAUDE_SKILL_DIR}/helpers/generate_slides.js \
+node {SKILL_DIR}/helpers/generate_slides.js \
   --data /tmp/slides-{week}.json \
   --output /tmp/weekly-report-{week}.pptx
 ```
@@ -127,7 +135,7 @@ Failed to generate .pptx — check Node.js and pptxgenjs installation.
 ## Step 4 — Upload to Google Drive
 
 ```bash
-uv run ${CLAUDE_SKILL_DIR}/helpers/upload_to_drive.py \
+uv run {SKILL_DIR}/helpers/upload_to_drive.py \
   --file /tmp/weekly-report-{week}.pptx \
   --title "Weekly Report {week}" \
   --folder-id $WEEKLY_REPORT_FOLDER_ID
@@ -144,4 +152,4 @@ Upload failed — check GOOGLE_APPLICATION_CREDENTIALS and WEEKLY_REPORT_FOLDER_
 Report created: {Google Drive URL}
 ```
 
-Clean up temp files: `/tmp/slides-{week}.json`, `/tmp/weekly-report-{week}.pptx`, `/tmp/weekly-report-draft-{week}.md` (if present), `/tmp/weekly-doc-img-*.png` and `/tmp/weekly-doc-img-*.jpg` (if present).
+Clean up temp files: `/tmp/slides-{week}.json`, `/tmp/weekly-report-{week}.pptx`, `/tmp/weekly-report-draft-{week}.md` (if present).
